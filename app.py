@@ -158,7 +158,7 @@ if not uploaded_files:
     st.container().markdown(
         """
         <div style="text-align: center; padding: 50px; color: #7f8c8d;">
-            <h3>👋 Selamat Datang!</h3>
+            <h3>Welcome!</h3>
             <p>Silakan upload file Excel laporan puskesmas melalui panel di sebelah kiri.</p>
         </div>
         """, unsafe_allow_html=True
