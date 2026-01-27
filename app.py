@@ -7,6 +7,8 @@ from logic import (
     hitung_ranking,
     cari_penyakit_umum
 )
+import altair as alt
+from pdf_generator import create_pdf_report
 
 # --- 0. State Management ---
 if 'upload_key' not in st.session_state:
@@ -67,6 +69,48 @@ def style_zigzag_groups(df, group_col):
             
         return df.style.apply(apply_style, axis=1)
     except: return df
+
+# --- HELPER: ALTAIR CHARTS ---
+def make_bar_chart(df, label_context="Kategori", value_col='Total_Kasus', title=""):
+    """
+    Membuat Bar Chart Horizontal.
+    label_context: Label statis atau kolom untuk tooltip (misal: "Global Kecamatan")
+    """
+    df = df.copy()
+    
+    # Ensure columns exist for tooltip
+    if 'ICD X' not in df.columns:
+        df['ICD X'] = '-'
+    
+    # If label_context is not a column, create it as a static column
+    if label_context not in df.columns:
+        df['Context'] = label_context
+        tooltip_ctx = 'Context'
+    else:
+        tooltip_ctx = label_context
+
+    # Batasi max char untuk label biar ga kepotong
+    df['Label_Pendek'] = df['Jenis Penyakit'].str.slice(0, 30) + '...'
+    
+    chart = alt.Chart(df).mark_bar(cornerRadiusTopRight=5, cornerRadiusBottomRight=5).encode(
+        x=alt.X(value_col, title=value_col.replace('_', ' ')),
+        y=alt.Y('Label_Pendek', sort='-x', title=None),
+        color=alt.value("#4facfe"), # Modern Blue
+        tooltip=['Jenis Penyakit', 'ICD X', value_col, alt.Tooltip(tooltip_ctx, title='Kategori')]
+    ).properties(
+        title=title,
+        height=400
+    )
+    
+    text = chart.mark_text(align='left', dx=5, color='white').encode(
+        text=alt.Text(value_col)
+    )
+    
+    return (chart + text).configure_axis(
+        labelFontSize=12,
+        titleFontSize=14
+    ).configure_view(strokeWidth=0)
+
 
 # --- FUNGSI PROSES DATA PER FILE (CACHED) ---
 @st.cache_data(show_spinner=False)
@@ -232,7 +276,7 @@ else:
             st.markdown("---")
             
             f_status = "Aktif" if (has_inc or exclude_alpha or exclude_list) else "Non-Aktif"
-            st.info(f"ℹ️ **Filter:** {f_status} | **Ranking:** Kec({top_n_kec_val}), Pusk({top_n_pusk_val})")
+            st.info(f"ℹ️ **Filter:** {f_status} | **Ranking:** Kec({top_n_kec_val}), Pusk({top_n_pusk_val}), Umum({top_n_common_val})")
 
             # Tabs
             tab1, tab2, tab3, tab4 = st.tabs([
@@ -244,19 +288,41 @@ else:
 
             with tab1:
                 st.subheader(f"Top {top_n_kec_val} Penyakit per Kecamatan")
+                
+                # Chart
+                with st.expander("📊 Lihat Grafik Visualisasi", expanded=True):
+                    # Agregasi untuk chart global kecamatan (Top 10 total)
+                    chart_data_kec = top_n_kec.groupby('Jenis Penyakit')['Total_Kasus'].sum().reset_index().sort_values('Total_Kasus', ascending=False).head(10)
+                    st.altair_chart(make_bar_chart(chart_data_kec, "Global Kecamatan", title="Top 10 Penyakit (Akumulasi Kecamatan)"), use_container_width=True)
+
                 # Menggunakan style_zigzag_groups yang sudah diperbaiki
                 st.dataframe(style_zigzag_groups(top_n_kec, 'Kecamatan'), use_container_width=True, height=500)
 
             with tab2:
                 st.subheader(f"Top {top_n_pusk_val} Penyakit per Puskesmas")
+                
+                # Chart
+                with st.expander("📊 Lihat Grafik Visualisasi", expanded=True):
+                     # Agregasi untuk chart global puskesmas
+                    chart_data_pusk = top_n_pusk.groupby('Jenis Penyakit')['Total_Kasus'].sum().reset_index().sort_values('Total_Kasus', ascending=False).head(10)
+                    st.altair_chart(make_bar_chart(chart_data_pusk, "Global Puskesmas", title="Top 10 Penyakit (Akumulasi Puskesmas)"), use_container_width=True)
+
                 # Menggunakan style_zigzag_groups yang sudah diperbaiki
                 st.dataframe(style_zigzag_groups(top_n_pusk, 'Puskesmas'), use_container_width=True, height=500)
 
             with tab3:
                 st.subheader("Analisis Dominasi Penyakit")
                 c1, c2 = st.columns(2)
-                with c1: st.markdown("**Persebaran di Kecamatan**"); st.dataframe(top_common_kec, use_container_width=True)
-                with c2: st.markdown("**Persebaran di Puskesmas**"); st.dataframe(top_common_pusk, use_container_width=True)
+                
+                with c1: 
+                    st.markdown("**Persebaran di Kecamatan**")
+                    st.altair_chart(make_bar_chart(top_common_kec.head(10), "Kecamatan", value_col='Frekuensi', title="Top Frekuensi di Kecamatan"), use_container_width=True)
+                    st.dataframe(top_common_kec, use_container_width=True)
+                
+                with c2: 
+                    st.markdown("**Persebaran di Puskesmas**")
+                    st.altair_chart(make_bar_chart(top_common_pusk.head(10), "Puskesmas", value_col='Frekuensi', title="Top Frekuensi di Puskesmas"), use_container_width=True)
+                    st.dataframe(top_common_pusk, use_container_width=True)
 
             with tab4:
                 st.subheader("Data Terfilter")
@@ -300,6 +366,38 @@ else:
                             for k, v in final_data.items():
                                 zf.writestr(f"{k}.csv", v.to_csv(index=False))
                         st.download_button("⬇️ Download ZIP", zbuf.getvalue(), "REKAP_CSV.zip", "application/zip", type="primary")
+            
+            # PDF Report Section
+            st.markdown("#### 📄 Laporan Cetak")
+            if st.button("Generate PDF Report"):
+                with st.spinner("Membuat PDF..."):
+                    # Prepare metrics dict
+                    metrics = {
+                        "total_file": len(uploaded_files),
+                        "total_pusk": filtered_df['Puskesmas'].nunique(),
+                        "total_kasus": filtered_df['Total_Kasus'].sum()
+                    }
+                    
+                    # Prepare N stats for titles
+                    n_stats = {
+                        "kec": top_n_kec_val,
+                        "pusk": top_n_pusk_val,
+                        "umum": top_n_common_val
+                    }
+                    
+                    try:
+                        pdf_bytes = create_pdf_report(metrics, top_n_kec, top_n_pusk, top_common_kec, n_stats)
+                        
+                        b64_pdf = bytes(pdf_bytes)
+                        st.download_button(
+                            label="⬇️ Download PDF Result",
+                            data=b64_pdf,
+                            file_name="Laporan_Rekap_Penyakit.pdf",
+                            mime="application/pdf",
+                            type="secondary"
+                        )
+                    except Exception as e:
+                        st.error(f"Gagal membuat PDF: {e}")
 
     # --- Reset Button ---
     st.markdown("---")
