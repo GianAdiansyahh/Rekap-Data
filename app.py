@@ -27,93 +27,44 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 2. Custom CSS ---
-st.markdown("""
-<style>
-    html, body, [class*="css"] {
-        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    }
-    h1 { font-weight: 700; color: #2C3E50; font-size: 2.5rem; margin-bottom: 0rem; }
-    h3 { font-weight: 600; color: #34495E; margin-top: 1rem; }
-    
-    /* Metrics */
-    div[data-testid="stMetric"] {
-        background-color: #F0F2F6;
-        border: 1px solid #E0E0E0;
-        padding: 15px; border-radius: 10px; color: #31333F;
-    }
-    div[data-testid="stMetric"] label { color: #555 !important; }
-    div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #000 !important; }
-    
-    /* Sidebar */
-    section[data-testid="stSidebar"] { background-color: #2C3E50; }
-    section[data-testid="stSidebar"] .stMarkdown, 
-    section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2,
-    section[data-testid="stSidebar"] h3, section[data-testid="stSidebar"] label,
-    section[data-testid="stSidebar"] span, section[data-testid="stSidebar"] div,
-    section[data-testid="stSidebar"] p { color: #ECF0F1 !important; }
-    
-    /* Inputs in Sidebar */
-    section[data-testid="stSidebar"] div[data-baseweb="select"] > div,
-    section[data-testid="stSidebar"] div[data-baseweb="input"] {
-        background-color: #34495E !important;
-        color: white !important;
-        border-color: #5D6D7E !important;
-    }
-    section[data-testid="stSidebar"] input { color: white !important; }
-    section[data-testid="stSidebar"] div[data-baseweb="tag"] { background-color: #1ABC9C; }
-    
-    div.stButton > button[kind="primary"] { width: 100%; border-radius: 8px; font-weight: 600; }
-    div.stButton > button[kind="secondary"] { width: 100%; border-radius: 8px; border: 1px solid #E74C3C; color: #E74C3C; }
-    
-    .block-container { padding-top: 2rem; }
-    
-    .ready-box {
-        padding: 20px;
-        background-color: #e8f8f5;
-        border: 1px solid #1abc9c;
-        border-radius: 10px;
-        color: #16a085;
-        text-align: center;
-        margin-bottom: 20px;
-    }
-    
-    /* Style untuk instruksi di sidebar */
-    .sidebar-info {
-        background-color: #34495E;
-        padding: 15px;
-        border-radius: 8px;
-        font-size: 0.85rem;
-        margin-bottom: 15px;
-        border-left: 4px solid #1ABC9C;
-    }
-    
-    /* Footer Style */
-    .footer {
-        position: fixed;
-        left: 0;
-        bottom: 0;
-        width: 100%;
-        background-color: #F8F9FA;
-        color: #7F8C8D;
-        text-align: center;
-        padding: 10px 0;
-        font-size: 0.85rem;
-        border-top: 1px solid #E9ECEF;
-        z-index: 100;
-    }
-</style>
-""", unsafe_allow_html=True)
+# --- 2. Load External CSS ---
+def load_css(file_name):
+    try:
+        with open(file_name) as f:
+            st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+    except FileNotFoundError:
+        # Fallback CSS jika file tidak ada (opsional)
+        pass
 
-# --- FUNGSI STYLING ZIGZAG ---
+load_css("style.css")
+
+# --- FUNGSI STYLING ZIGZAG (ADAPTIF CERDAS) ---
 def style_zigzag_groups(df, group_col):
+    """
+    Memberikan warna selang-seling yang adaptif (Light/Dark Mode).
+    Menggunakan RGBA (Transparan) agar warna menyatu dengan background tema.
+    """
     try:
         if group_col not in df.columns: return df
         unique_groups = df[group_col].unique()
-        styles = ['background-color: #1A1A1A; color: white;', 'background-color: #333333; color: white;']
+        
+        # WARNA ADAPTIF:
+        # Style 1: Abu-abu Netral dengan transparansi 10% (0.1).
+        #          - Di Light Mode jadi Abu Muda halus.
+        #          - Di Dark Mode jadi Abu Tua halus.
+        # Style 2: Transparan (mengikuti warna background asli browser).
+        # Note: Kita HAPUS 'color: white' agar warna teks otomatis ikut tema (Hitam/Putih).
+        styles = [
+            'background-color: rgba(128, 128, 128, 0.1);', 
+            'background-color: transparent;'
+        ]
+        
         group_map = {group: styles[i % 2] for i, group in enumerate(unique_groups)}
+        
         def apply_style(row):
+            # Terapkan style ke seluruh baris
             return [group_map.get(row.get(group_col), '')] * len(row)
+            
         return df.style.apply(apply_style, axis=1)
     except: return df
 
@@ -127,10 +78,9 @@ def process_single_file(file):
 with st.sidebar:
     st.header("📂 1. Input Data")
     
-    # Keterangan Ketentuan File (Dikembalikan)
     st.markdown("""
     <div class="sidebar-info">
-        <b>Ketentuan File Excel:</b><br>
+        <b>📋 Ketentuan File Excel:</b><br>
         1. Format wajib <b>.xlsx</b><br>
         2. Header data harus di <b>Baris ke-2</b> (Index 1)<br>
         3. Data Penyakit ada di kolom <b>D s/d AY</b><br>
@@ -157,8 +107,8 @@ if not uploaded_files:
     # Tampilan Awal Kosong
     st.container().markdown(
         """
-        <div style="text-align: center; padding: 50px; color: #7f8c8d;">
-            <h3>Welcome!</h3>
+        <div style="text-align: center; padding: 50px; opacity: 0.7;">
+            <h3>👋 Selamat Datang!</h3>
             <p>Silakan upload file Excel laporan puskesmas melalui panel di sebelah kiri.</p>
         </div>
         """, unsafe_allow_html=True
@@ -167,7 +117,7 @@ if not uploaded_files:
     st.session_state.data_processed = False
 
 else:
-    # --- LOAD DATA AWAL (Hanya untuk keperluan Filter, belum dihitung ranking) ---
+    # --- LOAD DATA AWAL ---
     with st.spinner('Membaca struktur data...'):
         all_data = []
         for file in uploaded_files:
@@ -180,17 +130,16 @@ else:
             master_df = pd.DataFrame()
 
     if not master_df.empty:
-        # Siapkan opsi filter dari data yang sudah di-load
+        # Siapkan opsi filter
         master_df['Label_Filter'] = master_df['ICD X'].astype(str) + " - " + master_df['Jenis Penyakit'].astype(str)
         master_df['Alpha_Filter'] = master_df['ICD X'].astype(str).str[0].str.upper()
         
         unique_diseases = sorted(master_df['Label_Filter'].unique())
         unique_alpha = sorted(master_df['Alpha_Filter'].unique())
 
-        # --- SIDEBAR: FORM PENGATURAN (Muncul setelah upload) ---
+        # --- SIDEBAR: FORM PENGATURAN ---
         with st.sidebar:
             st.markdown("---")
-            # Gunakan Form agar tidak auto-run saat ubah setting
             with st.form(key='settings_form'):
                 st.header("⚙️ 2. Pengaturan & Filter")
                 
@@ -227,9 +176,8 @@ else:
                 if submitted:
                     st.session_state.data_processed = True
 
-    # --- TAMPILAN UTAMA (LOGIC SPLIT) ---
+    # --- TAMPILAN UTAMA ---
     
-    # KONDISI 1: File sudah upload, tapi tombol belum ditekan
     if not st.session_state.data_processed:
         st.markdown(
             f"""
@@ -244,7 +192,6 @@ else:
         with st.expander("Intip Data Mentah (Preview 5 Baris Awal)"):
             st.dataframe(master_df.head(), use_container_width=True)
 
-    # KONDISI 2: Tombol sudah ditekan -> PROSES & TAMPILKAN HASIL
     else:
         # 1. Terapkan Filter
         filtered_df = master_df.copy()
@@ -270,7 +217,7 @@ else:
         if filtered_df.empty:
             st.error("⚠️ Hasil filter kosong! Silakan atur ulang filter di sidebar dan klik 'Mulai Rekapitulasi' lagi.")
         else:
-            # 2. Hitung Ranking (Baru dihitung di sini)
+            # 2. Hitung Ranking
             top_n_kec = hitung_ranking(filtered_df, ['Kecamatan'], top_n=top_n_kec_val)
             top_n_pusk = hitung_ranking(filtered_df, ['Puskesmas'], top_n=top_n_pusk_val)
             top_common_pusk = cari_penyakit_umum(top_n_pusk, 'Puskesmas', top_n=top_n_common_val)
@@ -284,9 +231,8 @@ else:
 
             st.markdown("---")
             
-            # Status Filter Info
             f_status = "Aktif" if (has_inc or exclude_alpha or exclude_list) else "Non-Aktif"
-            st.info(f"ℹ️ **Filter:** {f_status} | **Ranking:** Kec({top_n_kec_val}), Pusk({top_n_pusk_val}), Umum({top_n_common_val})")
+            st.info(f"ℹ️ **Filter:** {f_status} | **Ranking:** Kec({top_n_kec_val}), Pusk({top_n_pusk_val})")
 
             # Tabs
             tab1, tab2, tab3, tab4 = st.tabs([
@@ -298,10 +244,12 @@ else:
 
             with tab1:
                 st.subheader(f"Top {top_n_kec_val} Penyakit per Kecamatan")
+                # Menggunakan style_zigzag_groups yang sudah diperbaiki
                 st.dataframe(style_zigzag_groups(top_n_kec, 'Kecamatan'), use_container_width=True, height=500)
 
             with tab2:
                 st.subheader(f"Top {top_n_pusk_val} Penyakit per Puskesmas")
+                # Menggunakan style_zigzag_groups yang sudah diperbaiki
                 st.dataframe(style_zigzag_groups(top_n_pusk, 'Puskesmas'), use_container_width=True, height=500)
 
             with tab3:
@@ -329,7 +277,7 @@ else:
             with c_d1:
                 sel_data = st.multiselect("Pilih Data:", ["Semua Data"] + list(raw_opts.keys()), default=["Semua Data"])
             with c_d2:
-                fmt = st.radio("Format:", ["Excel (.xlsx)", "CSV (.csv)"], horizontal=True)
+                fmt = st.radio("Format:", ["Excel", "CSV"], horizontal=True)
             
             if sel_data:
                 final_data = raw_opts if "Semua Data" in sel_data else {k:v for k,v in raw_opts.items() if k in sel_data}
@@ -341,28 +289,28 @@ else:
                             sheet = k[:30].replace(" ", "_").upper()
                             clean_sheet = "".join(c for c in sheet if c.isalnum() or c=="_")
                             v.to_excel(writer, sheet_name=clean_sheet, index=False)
-                    st.download_button("Download Excel", buf.getvalue(), "REKAP_HASIL.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
+                    st.download_button("⬇️ Download Excel", buf.getvalue(), "REKAP_HASIL.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
                 else:
                     if len(final_data) == 1:
                         k = list(final_data.keys())[0]
-                        st.download_button("Download CSV", final_data[k].to_csv(index=False).encode(), f"{k}.csv", "text/csv", type="primary")
+                        st.download_button("⬇️ Download CSV", final_data[k].to_csv(index=False).encode(), f"{k}.csv", "text/csv", type="primary")
                     else:
                         zbuf = BytesIO()
                         with zipfile.ZipFile(zbuf, "w") as zf:
                             for k, v in final_data.items():
                                 zf.writestr(f"{k}.csv", v.to_csv(index=False))
-                        st.download_button("Download ZIP", zbuf.getvalue(), "REKAP_CSV.zip", "application/zip", type="primary")
+                        st.download_button("⬇️ Download ZIP", zbuf.getvalue(), "REKAP_CSV.zip", "application/zip", type="primary")
 
     # --- Reset Button ---
     st.markdown("---")
-    if st.button("Reset / Proses File Baru", type="secondary"):
+    if st.button("🔄 Reset / Proses File Baru", type="secondary"):
         reset_app()
         st.rerun()
 
-# --- 7. Footer Credits ---
+# --- Footer Credits ---
 st.markdown(
     """
-    <div style='text-align: center; color: #95a5a6; font-size: 0.85rem; margin-top: 3rem; margin-bottom: 2rem; padding-top: 1rem; border-top: 1px solid #eee;'>
+    <div class="footer">
         Developed by <b>Muhammad Dzaky</b> & <b>Gian Adiansyah</b>
     </div>
     """,
