@@ -1,0 +1,183 @@
+/* ==========================================================================
+   1. GLOBAL & TYPOGRAPHY
+   ========================================================================== */
+html,
+body {
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+h1 {
+    font-weight: 700;
+    font-size: 2.5rem;
+    margin-bottom: 0rem;
+}
+
+h3 {
+    font-weight: 600;
+    margin-top: 1rem;
+}
+
+.block-container {
+    padding-top: 2rem;
+}
+
+/* ==========================================================================
+   2. SIDEBAR CUSTOMIZATION
+   ========================================================================== */
+
+/* Background Color */
+section[data-testid="stSidebar"] {
+    background-color: #2C3E50;
+    /* Professional Dark Blue */
+}
+
+/* Text Color (Force White for contrast) */
+section[data-testid="stSidebar"] .stMarkdown,
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] div,
+section[data-testid="stSidebar"] p {
+    color: #ECF0F1 !important;
+}
+
+/* Info Box */
+.sidebar-info {
+    background-color: #34495E;
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-bottom: 15px;
+    border-left: 4px solid #1ABC9C;
+    color: #ECF0F1;
+}
+
+/* --- Input Fields (Selectbox, TextInput) --- */
+section[data-testid="stSidebar"] div[data-baseweb="select"]>div,
+section[data-testid="stSidebar"] div[data-baseweb="input"] {
+    background-color: #34495E;
+    border-color: #5D6D7E;
+    color: white;
+}
+
+/* Adaptive Inputs (Light/Dark Mode overrides) */
+@media (prefers-color-scheme: light) {
+
+    section[data-testid="stSidebar"] div[data-baseweb="select"]>div,
+    section[data-testid="stSidebar"] div[data-baseweb="input"] {
+        background-color: #FFFFFF !important;
+        border-color: #CCCCCC !important;
+        color: #000000 !important;
+    }
+
+    /* Fix text visibility */
+    section[data-testid="stSidebar"] input {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+        caret-color: #000000 !important;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+
+    section[data-testid="stSidebar"] div[data-baseweb="select"]>div,
+    section[data-testid="stSidebar"] div[data-baseweb="input"] {
+        background-color: #34495E !important;
+        border-color: #5D6D7E !important;
+        color: white !important;
+    }
+
+    section[data-testid="stSidebar"] input {
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        caret-color: #FFFFFF !important;
+    }
+}
+
+/* Tags/Multiselect items */
+section[data-testid="stSidebar"] div[data-baseweb="tag"] {
+    background-color: #1ABC9C;
+}
+
+/* --- File Uploader --- */
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] {
+    background-color: #34495E !important;
+    border: 1px dashed #ECF0F1 !important;
+    color: #ECF0F1 !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] div,
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] span,
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] small {
+    color: #ECF0F1 !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button {
+    background-color: #2C3E50 !important;
+    color: #ECF0F1 !important;
+    border: 1px solid #ECF0F1 !important;
+}
+
+/* ==========================================================================
+   3. COMPONENTS (METRICS, BUTTONS, ALERTS)
+   ========================================================================== */
+
+/* Metrics Box */
+div[data-testid="stMetric"] {
+    background-color: rgba(128, 128, 128, 0.1);
+    border: 1px solid rgba(128, 128, 128, 0.2);
+    padding: 15px;
+    border-radius: 10px;
+}
+
+/* Buttons */
+div.stButton>button[kind="primary"] {
+    width: 100%;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+div.stButton>button[kind="secondary"] {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid #E74C3C;
+    color: #E74C3C;
+}
+
+/* Ready Box (Welcome Message) */
+.ready-box {
+    padding: 20px;
+    background-color: rgba(26, 188, 156, 0.1);
+    border: 1px solid #1abc9c;
+    border-radius: 10px;
+    color: #16a085;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+/* ==========================================================================
+   4. FOOTER
+   ========================================================================== */
+/* ==========================================================================
+   4. FOOTER
+   ========================================================================== */
+.footer {
+    width: 100%;
+    background-color: #F8F9FA;
+    border-top: 1px solid #E9ECEF;
+    color: #7F8C8D;
+    text-align: center;
+    padding: 20px 0;
+    font-size: 0.85rem;
+    margin-top: 50px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .footer {
+        background-color: #0E1117;
+        border-top: 1px solid #333;
+        color: #888;
+    }
+}
