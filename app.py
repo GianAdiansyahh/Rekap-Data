@@ -24,7 +24,7 @@ def reset_app():
 
 # --- 1. Konfigurasi Halaman ---
 st.set_page_config(
-    page_title="Rekap Data Kesehatan",
+    page_title="Rekap DataaKesehatan",
     page_icon="🏥",
     layout="wide"
 )
@@ -114,7 +114,7 @@ def make_bar_chart(df, label_context="Kategori", value_col='Total_Kasus', title=
 
 # --- FUNGSI PROSES DATA PER FILE (CACHED) ---
 @st.cache_data(show_spinner=False)
-def process_single_file(file):
+def process_single_file_v2(file):
     file.seek(0)
     return baca_dan_bersihkan_file(file)
 
@@ -142,83 +142,84 @@ with st.sidebar:
     else:
         st.caption("Silakan upload file untuk melanjutkan.")
 
-# --- 4. Main Content ---
-st.title("🏥 Rekap Data Penyakit")
-st.markdown("Dashboard rekapitulasi data penyakit per kecamatan dan puskesmas.")
-st.divider()
+# --- MODE FUNCTIONS ---
 
-if not uploaded_files:
-    # Tampilan Awal Kosong
-    st.container().markdown(
-        """
-        <div style="text-align: center; padding: 50px; opacity: 0.7;">
-            <h3>👋 Selamat Datang!</h3>
-            <p>Silakan upload file Excel laporan puskesmas melalui panel di sebelah kiri.</p>
-        </div>
-        """, unsafe_allow_html=True
-    )
-    # Reset status jika file dihapus manual
-    st.session_state.data_processed = False
-
-else:
-    # --- LOAD DATA AWAL ---
-    with st.spinner('Membaca struktur data...'):
-        all_data = []
-        for file in uploaded_files:
-            df = process_single_file(file)
-            all_data.append(df)
-        
-        if all_data:
-            master_df = pd.concat(all_data, ignore_index=True)
+def show_dashboard_recap(master_df, uploaded_files, log_data):
+    """Logika Dashboard Utama (Rekap Global)"""
+    st.title("🏥 Rekap Data Penyakit")
+    st.markdown("Dashboard rekapitulasi data penyakit per kecamatan dan puskesmas.")
+    
+    # QA Report
+    with st.expander("📝 Laporan Kualitas Data (Quality Check)", expanded=False):
+        if log_data:
+            df_log = pd.DataFrame(log_data)
+            
+            # Warn if any error
+            err_count = df_log[df_log['status'] == 'ERROR'].shape[0]
+            warn_count = df_log[df_log['status'] == 'WARNING'].shape[0]
+            
+            if err_count > 0:
+                st.error(f"Ditemukan {err_count} File Gagal Diproses!")
+            elif warn_count > 0:
+                st.warning(f"Ditemukan {warn_count} File dengan Peringatan.")
+            else:
+                st.success("Semua File Berhasil Diproses Sempurna.")
+                
+            def highlight_status(val):
+                color = 'green' if val == 'SUCCESS' else 'red' if val == 'ERROR' else 'orange'
+                return f'color: {color}; font-weight: bold'
+            
+            st.dataframe(df_log.style.applymap(highlight_status, subset=['status']), use_container_width=True)
         else:
-            master_df = pd.DataFrame()
+            st.info("Belum ada data log.")
 
-    if not master_df.empty:
-        # Siapkan opsi filter
-        master_df['Label_Filter'] = master_df['ICD X'].astype(str) + " - " + master_df['Jenis Penyakit'].astype(str)
-        master_df['Alpha_Filter'] = master_df['ICD X'].astype(str).str[0].str.upper()
-        
-        unique_diseases = sorted(master_df['Label_Filter'].unique())
-        unique_alpha = sorted(master_df['Alpha_Filter'].unique())
+    st.divider()
 
-        # --- SIDEBAR: FORM PENGATURAN ---
-        with st.sidebar:
+    # Siapkan opsi filter (Helper columns)
+    master_df['Label_Filter'] = master_df['ICD X'].astype(str) + " - " + master_df['Jenis Penyakit'].astype(str)
+    master_df['Alpha_Filter'] = master_df['ICD X'].astype(str).str[0].str.upper()
+    
+    unique_diseases = sorted(master_df['Label_Filter'].unique())
+    unique_alpha = sorted(master_df['Alpha_Filter'].unique())
+
+    # --- SIDEBAR: FORM PENGATURAN ---
+    with st.sidebar:
+        st.markdown("---")
+        with st.form(key='settings_form'):
+            st.header("⚙️ 2. Pengaturan & Filter")
+            
+            # A. Pengaturan Ranking
+            st.subheader("Ranking (Top N)")
+            col_n1, col_n2 = st.columns(2)
+            with col_n1:
+                top_n_kec_val = st.number_input("Kecamatan", 1, 25, 10)
+                top_n_common_val = st.number_input("Analisis Umum", 1, 25, 5)
+            with col_n2:
+                top_n_pusk_val = st.number_input("Puskesmas", 1, 25, 10)
+            
             st.markdown("---")
-            with st.form(key='settings_form'):
-                st.header("⚙️ 2. Pengaturan & Filter")
+            
+            # B. Filter Data
+            st.subheader("Filter Data")
+            tab_include, tab_exclude = st.tabs(["✅ Include", "❌ Exclude"])
+            
+            with tab_include:
+                st.caption("HANYA tampilkan:")
+                include_alpha = st.multiselect("Huruf Awal:", unique_alpha, key='inc_a')
+                include_list = st.multiselect("Penyakit:", unique_diseases, key='inc_l')
                 
-                # A. Pengaturan Ranking
-                st.subheader("Ranking (Top N)")
-                col_n1, col_n2 = st.columns(2)
-                with col_n1:
-                    top_n_kec_val = st.number_input("Kecamatan", 1, 25, 10)
-                    top_n_common_val = st.number_input("Analisis Umum", 1, 25, 5)
-                with col_n2:
-                    top_n_pusk_val = st.number_input("Puskesmas", 1, 25, 10)
-                
-                st.markdown("---")
-                
-                # B. Filter Data
-                st.subheader("Filter Data")
-                tab_include, tab_exclude = st.tabs(["✅ Include", "❌ Exclude"])
-                
-                with tab_include:
-                    st.caption("HANYA tampilkan:")
-                    include_alpha = st.multiselect("Huruf Awal:", unique_alpha, key='inc_a')
-                    include_list = st.multiselect("Penyakit:", unique_diseases, key='inc_l')
-                    
-                with tab_exclude:
-                    st.caption("SEMBUNYIKAN data:")
-                    exclude_alpha = st.multiselect("Huruf Awal:", unique_alpha, key='exc_a')
-                    exclude_list = st.multiselect("Penyakit:", unique_diseases, key='exc_l')
-                
-                st.markdown("---")
-                
-                # TOMBOL EKSEKUSI
-                submitted = st.form_submit_button("MULAI REKAPITULASI", type="primary")
-                
-                if submitted:
-                    st.session_state.data_processed = True
+            with tab_exclude:
+                st.caption("SEMBUNYIKAN data:")
+                exclude_alpha = st.multiselect("Huruf Awal:", unique_alpha, key='exc_a')
+                exclude_list = st.multiselect("Penyakit:", unique_diseases, key='exc_l')
+            
+            st.markdown("---")
+            
+            # TOMBOL EKSEKUSI
+            submitted = st.form_submit_button("MULAI REKAPITULASI", type="primary")
+            
+            if submitted:
+                st.session_state.data_processed = True
 
     # --- TAMPILAN UTAMA ---
     
@@ -398,6 +399,164 @@ else:
                         )
                     except Exception as e:
                         st.error(f"Gagal membuat PDF: {e}")
+
+def show_regional_filter(master_df):
+    st.title("🌍 Filter Wilayah")
+    st.markdown("Analisis spesifik untuk satu Kecamatan atau Puskesmas tertentu.")
+    st.divider()
+
+    col1, col2 = st.columns(2)
+    with col1:
+        scope = st.selectbox("Pilih Tingkat Wilayah:", ["Kecamatan", "Puskesmas"])
+    
+    with col2:
+        # Get unique list based on scope
+        options = sorted(master_df[scope].unique())
+        selected_entity = st.selectbox(f"Pilih Nama {scope}:", options)
+
+    if selected_entity:
+        # Filter Data
+        df_filtered = master_df[master_df[scope] == selected_entity].copy()
+        
+        # Metrics
+        m1, m2, m3 = st.columns(3)
+        with m1: st.metric("Total Kasus", f"{df_filtered['Total_Kasus'].sum():,}")
+        with m2: st.metric("Jenis Penyakit Unik", f"{df_filtered['Jenis Penyakit'].nunique()}")
+        with m3: 
+            if scope == "Kecamatan":
+                st.metric("Jumlah Puskesmas", f"{df_filtered['Puskesmas'].nunique()}")
+            else:
+                kec_name = df_filtered['Kecamatan'].iloc[0] if not df_filtered.empty else "-"
+                st.metric("Kecamatan", kec_name)
+        
+        st.markdown("### Top 10 Penyakit")
+        
+        # Calculate Stats
+        top_10 = hitung_ranking(df_filtered, [scope], top_n=10)
+        
+        # Chart & Table
+        c_chart, c_table = st.columns([1, 1])
+        
+        with c_chart:
+            # Aggregate for chart (simple top 10 by disease)
+            chart_data = top_10.groupby(['Jenis Penyakit', 'ICD X'])['Total_Kasus'].sum().reset_index().sort_values('Total_Kasus', ascending=False).head(10)
+            st.altair_chart(make_bar_chart(chart_data, selected_entity, title=f"Top 10 di {selected_entity}"), use_container_width=True)
+            
+        with c_table:
+            st.dataframe(style_zigzag_groups(top_10, scope), use_container_width=True)
+
+def show_comparison(master_df):
+    st.title("⚖️ Komparasi Puskesmas")
+    st.markdown("Bandingkan data kesehatan antara dua Puskesmas secara head-to-head.")
+    st.divider()
+
+    pusk_list = sorted(master_df['Puskesmas'].unique())
+    
+    col_sel1, col_sel2 = st.columns(2)
+    with col_sel1:
+        p1 = st.selectbox("Pilih Puskesmas A", pusk_list, index=0)
+    with col_sel2:
+        # Default ke index 1 jika ada
+        idx_def = 1 if len(pusk_list) > 1 else 0
+        p2 = st.selectbox("Pilih Puskesmas B", pusk_list, index=idx_def)
+
+    if p1 and p2:
+        if p1 == p2:
+            st.warning("Silakan pilih dua Puskesmas yang berbeda.")
+        else:
+            # Filter Data
+            df1 = master_df[master_df['Puskesmas'] == p1]
+            df2 = master_df[master_df['Puskesmas'] == p2]
+
+            # 1. Compare Metrics
+            st.subheader("1. Perbandingan Total Kasus")
+            col_m1, col_m2 = st.columns(2)
+            
+            with col_m1:
+                val1 = df1['Total_Kasus'].sum()
+                st.metric(f"Total Kasus {p1}", f"{val1:,}")
+            
+            with col_m2:
+                val2 = df2['Total_Kasus'].sum()
+                delta = val2 - val1
+                st.metric(f"Total Kasus {p2}", f"{val2:,}", delta=f"{delta:,}")
+
+            st.markdown("---")
+
+            # 2. Compare Charts (Top 5 each)
+            st.subheader("2. Top 5 Penyakit Masing-Masing")
+            
+            # Helper data prep
+            top5_1 = df1.groupby(['Jenis Penyakit', 'ICD X'])['Total_Kasus'].sum().reset_index().sort_values('Total_Kasus', ascending=False).head(5)
+            top5_2 = df2.groupby(['Jenis Penyakit', 'ICD X'])['Total_Kasus'].sum().reset_index().sort_values('Total_Kasus', ascending=False).head(5)
+
+            c_chart1, c_chart2 = st.columns(2)
+            with c_chart1:
+                st.caption(f"Di {p1}")
+                st.altair_chart(make_bar_chart(top5_1, p1, title=p1), use_container_width=True)
+            with c_chart2:
+                st.caption(f"Di {p2}")
+                st.altair_chart(make_bar_chart(top5_2, p2, title=p2), use_container_width=True)
+            
+            # 3. Overlap Analysis
+            st.subheader("3. Irisan Penyakit (Penyakit Sama)")
+            # Cari penyakit yang ada di kedua puskesmas (Top 10 gabungan)
+            merged = pd.merge(top5_1[['Jenis Penyakit', 'Total_Kasus']], top5_2[['Jenis Penyakit', 'Total_Kasus']], on='Jenis Penyakit', how='inner', suffixes=(f'_{p1}', f'_{p2}'))
+            
+            if not merged.empty:
+                st.dataframe(merged, use_container_width=True)
+            else:
+                st.info("Tidak ada irisan penyakit di Top 5 masing-masing.")
+
+
+# --- MAIN LOGIC ---
+
+if not uploaded_files:
+    # Tampilan Awal Kosong
+    st.container().markdown(
+        """
+        <div style="text-align: center; padding: 50px; opacity: 0.7;">
+            <h3>👋 Selamat Datang!</h3>
+            <p>Silakan upload file Excel laporan puskesmas melalui panel di sebelah kiri.</p>
+        </div>
+        """, unsafe_allow_html=True
+    )
+    # Reset status jika file dihapus manual
+    st.session_state.data_processed = False
+
+else:
+    # --- LOAD DATA AWAL ---
+    with st.spinner('Membaca struktur data...'):
+        all_data = []
+        log_data = []
+        
+        for file in uploaded_files:
+            # Unpack result tuple
+            df, log = process_single_file_v2(file)
+            log_data.append(log)
+            
+            if not df.empty:
+                all_data.append(df)
+        
+        if all_data:
+            master_df = pd.concat(all_data, ignore_index=True)
+        else:
+            master_df = pd.DataFrame()
+
+    if not master_df.empty:
+        # Navigation
+        st.sidebar.markdown("---")
+        mode = st.sidebar.radio("📌 Pilih Mode:", ["Dashboard Utama", "Filter Wilayah", "Komparasi"])
+        
+        if mode == "Dashboard Utama":
+            # Pass log_data to dashboard
+            show_dashboard_recap(master_df, uploaded_files, log_data)
+        elif mode == "Filter Wilayah":
+            show_regional_filter(master_df)
+        elif mode == "Komparasi":
+            show_comparison(master_df)
+    else:
+        st.error("Tidak ada data valid yang bisa ditampilkan. Cek 'Laporan Kualitas Data' di Dashboard Utama.")
 
     # --- Reset Button ---
     st.markdown("---")

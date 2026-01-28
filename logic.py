@@ -21,7 +21,13 @@ MAPPING_KECAMATAN = {
 }
 
 def baca_dan_bersihkan_file(uploaded_file):
-    """Membaca file Excel, membersihkan header/footer sampah, dan menambahkan kolom wilayah."""
+    """
+    Membaca file Excel.
+    Returns: (dataframe, log_dict)
+    log_dict = {'file': str, 'status': 'SUCCESS'|'WARNING'|'ERROR', 'message': str}
+    """
+    log = {'file': uploaded_file.name, 'status': 'SUCCESS', 'message': 'Berhasil diproses.'}
+    
     try:
         # Ambil nama puskesmas dari nama file (Streamlit uploaded_file object)
         nama_pusk = os.path.splitext(uploaded_file.name)[0].upper().strip()
@@ -46,19 +52,30 @@ def baca_dan_bersihkan_file(uploaded_file):
         df['ICD X'] = df['ICD X'].astype(str).str.strip().str.upper()
 
         # 4. Ambil Kolom Penting Saja
-        clean_df = df[['Jenis Penyakit', 'ICD X', 'Total_Kasus']].copy()
+        try:
+            clean_df = df[['Jenis Penyakit', 'ICD X', 'Total_Kasus']].copy()
+        except KeyError as e:
+            log['status'] = 'ERROR'
+            log['message'] = f"Kolom wajib tidak ditemukan: {str(e)}"
+            return pd.DataFrame(), log
+
         clean_df['Puskesmas'] = nama_pusk
         clean_df['Kecamatan'] = kecamatan
 
         # Hanya ambil yang ada kasusnya
         clean_df = clean_df[clean_df['Total_Kasus'] > 0]
+        
+        if clean_df.empty:
+            log['status'] = 'WARNING'
+            log['message'] = 'File valid tapi tidak ada data kasus (>0).'
 
-        return clean_df
+        return clean_df, log
 
     except Exception as e:
         # Error handling agar aplikasi tidak crash jika ada 1 file bermasalah
-        st.error(f"Gagal memproses file {uploaded_file.name}: {str(e)}")
-        return pd.DataFrame()
+        log['status'] = 'ERROR'
+        log['message'] = f"Gagal memproses: {str(e)}"
+        return pd.DataFrame(), log
 
 def hitung_ranking(df, group_cols, top_n=10):
     """Menghitung Top N penyakit berdasarkan grup (Kecamatan/Puskesmas)."""
