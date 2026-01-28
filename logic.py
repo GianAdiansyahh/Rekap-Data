@@ -29,12 +29,17 @@ def baca_dan_bersihkan_file(uploaded_file):
     log = {'file': uploaded_file.name, 'status': 'SUCCESS', 'message': 'Berhasil diproses.'}
     
     try:
-        # Ambil nama puskesmas dari nama file (Streamlit uploaded_file object)
+        # Ambil nama puskesmas dari nama file
         nama_pusk = os.path.splitext(uploaded_file.name)[0].upper().strip()
         kecamatan = MAPPING_KECAMATAN.get(nama_pusk, 'TIDAK TERDAFTAR')
 
-        # Baca Excel, skip header row pertama (sesuai logic kamu header=1)
-        df = pd.read_excel(uploaded_file, header=1)
+        # OPTIMASI 1: Coba pakai engine 'calamine' (Rust) yang super cepat
+        try:
+            df = pd.read_excel(uploaded_file, header=1, engine='calamine')
+        except Exception:
+            # Fallback ke engine default (openpyxl) jika calamine gagal/belum install
+            uploaded_file.seek(0)
+            df = pd.read_excel(uploaded_file, header=1)
 
         # 1. Filter Baris Sampah (Total/Jumlah)
         mask_sampah = df['Jenis Penyakit'].astype(str).str.contains(
@@ -43,7 +48,6 @@ def baca_dan_bersihkan_file(uploaded_file):
         df = df[~mask_sampah]
 
         # 2. Sum Kolom D (Index 3) sampai AY (Index 50)
-        # Menggunakan coerce agar jika ada sel kosong/text error jadi NaN lalu 0
         data_angka = df.iloc[:, 3:51].apply(pd.to_numeric, errors='coerce').fillna(0)
         df['Total_Kasus'] = data_angka.sum(axis=1)
 
@@ -59,8 +63,9 @@ def baca_dan_bersihkan_file(uploaded_file):
             log['message'] = f"Kolom wajib tidak ditemukan: {str(e)}"
             return pd.DataFrame(), log
 
-        clean_df['Puskesmas'] = nama_pusk
-        clean_df['Kecamatan'] = kecamatan
+        # OPTIMASI 2: Gunakan Category untuk hemat memori
+        clean_df['Puskesmas'] = pd.Series([nama_pusk] * len(clean_df)).astype('category')
+        clean_df['Kecamatan'] = pd.Series([kecamatan] * len(clean_df)).astype('category')
 
         # Hanya ambil yang ada kasusnya
         clean_df = clean_df[clean_df['Total_Kasus'] > 0]
