@@ -3,6 +3,7 @@ import pandas as pd
 import altair as alt
 from io import BytesIO
 import zipfile
+import concurrent.futures
 
 # --- Local Modules ---
 from logic import (
@@ -10,7 +11,10 @@ from logic import (
     hitung_ranking,
     cari_penyakit_umum
 )
-from pdf_generator import create_pdf_report
+from pdf_generator import (
+    create_pdf_report,
+    create_custom_pdf
+)
 
 # ==============================================================================
 # 0. KONFIGURASI & STATE
@@ -33,7 +37,7 @@ def reset_app():
     st.cache_data.clear()
 
 # ==============================================================================
-# 1. HELPER FUNCTIONS (STYLING & VISUALIZATION)
+# 1. HELPER FUNCTIONS (STYLING, VISUALIZATION, PREVIEW)
 # ==============================================================================
 
 def load_css(file_name):
@@ -97,6 +101,63 @@ def make_bar_chart(df, label_context="Kategori", value_col='Total_Kasus', title=
         labelFontSize=12, titleFontSize=14
     ).configure_view(strokeWidth=0)
 
+def render_theme_preview(theme_name, title_text="Laporan Rekapitulasi Data Kesehatan"):
+    """Menampilkan preview visual CSS sederhana untuk tema PDF."""
+    
+    # Config Colors (Match pdf_generator.py)
+    if theme_name == 'Formal Monochrome':
+        header_bg = "#FFFFFF"
+        header_txt = "#000000"
+        border = "1px solid #000000"
+        font = "Times New Roman, serif"
+        stripe = "#FFFFFF"
+    elif theme_name == 'Medical Fresh':
+        header_bg = "#16A085" # Teal
+        header_txt = "#FFFFFF" 
+        border = "none"
+        font = "Helvetica, Arial, sans-serif"
+        stripe = "#FFFFFF" # Clean
+        border_bottom = "1px solid #ddd" # Only horizontal
+    else: # Modern Minimalist
+        header_bg = "#2C3E50" # Navy
+        header_txt = "#FFFFFF"
+        border = "none"
+        font = "Helvetica, Arial, sans-serif"
+        stripe = "#F2F2F2"
+
+    # HTML Preview
+    st.markdown(f"""
+    <div style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-family: {font}; color: #333;">
+        <div style="font-size: 10px; color: #888; margin-bottom: 5px;">PREVIEW DESAIN: {theme_name.upper()}</div>
+        <!-- HEADER -->
+        <div style="background-color: {header_bg}; color: {header_txt}; padding: 10px; font-weight: bold; font-size: 14px; border: {border};">
+            {title_text}
+        </div>
+        <div style="margin-top: 10px; font-size: 12px;">
+            <b>1. Pendahuluan</b><br>
+            Berikut adalah data penyakit...
+        </div>
+        <!-- TABLE -->
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px;">
+            <tr style="background-color: {header_bg}; color: {header_txt};">
+                <th style="padding: 5px; border: {border}; text-align: left;">Kecamatan</th>
+                <th style="padding: 5px; border: {border}; text-align: left;">Penyakit</th>
+                <th style="padding: 5px; border: {border}; text-align: left;">Kasus</th>
+            </tr>
+            <tr style="background-color: #fff; border-bottom: { '1px solid #eee' if theme_name != 'Formal Monochrome' else '1px solid black' };">
+                <td style="padding: 5px; border: {border};">Semarang Tengah</td>
+                <td style="padding: 5px; border: {border};">Hipertensi</td>
+                <td style="padding: 5px; border: {border};">150</td>
+            </tr>
+            <tr style="background-color: {stripe}; border-bottom: { '1px solid #eee' if theme_name != 'Formal Monochrome' else '1px solid black' };">
+                <td style="padding: 5px; border: {border};">Banyumanik</td>
+                <td style="padding: 5px; border: {border};">ISPA</td>
+                <td style="padding: 5px; border: {border};">120</td>
+            </tr>
+        </table>
+    </div>
+    """, unsafe_allow_html=True)
+    
 # ==============================================================================
 # 2. LOGIC WRAPPER
 # ==============================================================================
@@ -113,7 +174,7 @@ def process_single_file_v2(file):
 
 def show_quality_report(log_data):
     """Menampilkan expander laporan kualitas data data."""
-    with st.expander("📝 Quality Check", expanded=False):
+    with st.expander("📝 Laporan Kualitas Data (Quality Check)", expanded=False):
         if log_data:
             df_log = pd.DataFrame(log_data)
             
@@ -321,7 +382,7 @@ def _render_download_section(df_view, top_kec, top_pusk, common_kec, uploaded_fi
                 st.download_button("⬇️ Download ZIP", zbuf.getvalue(), "REKAP_CSV.zip", "application/zip", type="primary")
 
     # PDF Report Section
-    st.markdown("#### 📄 Laporan Cetak")
+    st.markdown("#### 📄 Laporan PDF")
     if st.button("Generate PDF Report"):
         with st.spinner("Membuat PDF..."):
             metrics = {
@@ -381,6 +442,7 @@ def show_comparison(master_df):
     st.markdown("Bandingkan data kesehatan antara dua Puskesmas secara head-to-head.")
     st.divider()
 
+    # FIX: Casting to str before sorting to avoid TypeError with NaNs or mixed types
     pusk_list = sorted(master_df['Puskesmas'].dropna().astype(str).unique())
     c1, c2 = st.columns(2)
     with c1: p1 = st.selectbox("Pilih Puskesmas A", pusk_list, index=0)
@@ -420,6 +482,132 @@ def show_comparison(master_df):
             merged = pd.merge(top5_1[['Jenis Penyakit', 'Total_Kasus']], top5_2[['Jenis Penyakit', 'Total_Kasus']], on='Jenis Penyakit', how='inner', suffixes=(f'_{p1}', f'_{p2}'))
             if not merged.empty: st.dataframe(merged, use_container_width=True)
             else: st.info("Tidak ada irisan penyakit di Top 5.")
+
+
+
+def show_custom_report(master_df):
+    """Tampilan Mode: Laporan Custom"""
+    st.title("📄 Laporan PDF Custom")
+    st.markdown("Rancang isi laporan PDF sesuai kebutuhan Anda.")
+    st.markdown("*Fitur ini masih dalam tahap pengembangan, jika ada kesalahan dalam generate mohon lapor ke admin")
+    st.divider()
+
+    # --- CONFIG FORM ---
+    with st.form("custom_report_form"):
+        st.subheader("1. Desain & Judul")
+        
+        c_des1, c_des2 = st.columns([1, 2])
+        with c_des1:
+            # Theme Selector
+            pdf_theme = st.selectbox(
+                "Pilih Tema Desain:", 
+                ['Modern Minimalist', 'Formal Monochrome', 'Medical Fresh']
+            )
+            # Show live preview (Dynamic Title)
+            curr_title = st.session_state.get('rep_title', "Laporan Custom Rekap Data Kesehatan")
+            render_theme_preview(pdf_theme, curr_title)
+            
+        with c_des2:
+            st.text_input("Judul Laporan:", "Laporan Custom Rekap Data Kesehatan", key="rep_title")
+            st.info("💡 Tema mempengaruhi jenis font, warna header, dan gaya tabel di PDF.")
+        
+        st.markdown("---")
+        st.subheader("2. Pilih Konten")
+        
+        # Section 1: Rankings
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            inc_kec = st.checkbox("Top N Kecamatan", value=True)
+            n_kec = st.number_input("N Kecamatan", 1, 50, 10, disabled=not inc_kec)
+        with c2:
+            inc_pusk = st.checkbox("Top N Puskesmas", value=True)
+            n_pusk = st.number_input("N Puskesmas", 1, 50, 10, disabled=not inc_pusk)
+        with c3:
+            inc_umum = st.checkbox("Top N Umum", value=True)
+            n_umum = st.number_input("N Umum", 1, 50, 5, disabled=not inc_umum)
+            
+        st.markdown("---")
+        
+        # Section 2: Drill Down Filter
+        inc_filter = st.checkbox("Sertakan Detail Wilayah (Filter)", value=False)
+        f_scope, f_entity = None, None
+        
+        if inc_filter:
+            fc1, fc2 = st.columns(2)
+            with fc1: f_scope = st.selectbox("Tingkat Wilayah:", ["Kecamatan", "Puskesmas"], key="cust_f_scope")
+            with fc2: 
+                opts = sorted(master_df[f_scope].dropna().astype(str).unique())
+                f_entity = st.selectbox(f"Pilih Nama {f_scope}:", opts, key="cust_f_entity")
+        
+        st.markdown("---")
+        
+        # Section 3: Comparison
+        inc_compare = st.checkbox("Sertakan Komparasi Puskesmas", value=False)
+        comp_p1, comp_p2 = None, None
+        
+        if inc_compare:
+            p_list = sorted(master_df['Puskesmas'].dropna().astype(str).unique())
+            cc1, cc2 = st.columns(2)
+            with cc1: comp_p1 = st.selectbox("Puskesmas A:", p_list, index=0, key="cust_c_p1")
+            with cc2: comp_p2 = st.selectbox("Puskesmas B:", p_list, index=1 if len(p_list)> 1 else 0, key="cust_c_p2")
+            
+        st.markdown("---")
+        submit = st.form_submit_button("🔨 Generate Laporan PDF", type="primary")
+
+    if submit:
+        # VALIDATION
+        if inc_compare and comp_p1 == comp_p2:
+            st.error("Komparasi gagal: Pilih dua Puskesmas yang berbeda.")
+            return
+
+        with st.spinner("Mengumpulkan data dan menyusun PDF..."):
+            # 1. GATHER DATA (Recalculate based on input)
+            report_title_val = st.session_state.rep_title if 'rep_title' in st.session_state else "Laporan Custom"
+            
+            data_payload = {}
+            if inc_kec: data_payload['df_kec'] = hitung_ranking(master_df, ['Kecamatan'], top_n=n_kec)
+            if inc_pusk: data_payload['df_pusk'] = hitung_ranking(master_df, ['Puskesmas'], top_n=n_pusk)
+            if inc_umum:
+                tmp_pusk = hitung_ranking(master_df, ['Puskesmas'], top_n=10)
+                data_payload['df_umum'] = cari_penyakit_umum(tmp_pusk, 'Puskesmas', top_n=n_umum)
+            
+            if inc_filter and f_entity:
+                df_f = master_df[master_df[f_scope] == f_entity].copy()
+                data_payload['df_filter'] = hitung_ranking(df_f, [f_scope], top_n=20)
+                data_payload['filter_metrics'] = {'kasus': df_f['Total_Kasus'].sum()}
+            
+            if inc_compare and comp_p1 and comp_p2:
+                 df1 = master_df[master_df['Puskesmas'] == comp_p1]
+                 df2 = master_df[master_df['Puskesmas'] == comp_p2]
+                 top1 = df1.groupby(['Jenis Penyakit', 'ICD X'])['Total_Kasus'].sum().reset_index().sort_values('Total_Kasus', ascending=False).head(10)
+                 top2 = df2.groupby(['Jenis Penyakit', 'ICD X'])['Total_Kasus'].sum().reset_index().sort_values('Total_Kasus', ascending=False).head(10)
+                 intersect = pd.merge(top1[['Jenis Penyakit', 'Total_Kasus']], top2[['Jenis Penyakit', 'Total_Kasus']], on='Jenis Penyakit', how='inner', suffixes=(f'_{comp_p1}', f'_{comp_p2}'))
+                 data_payload['df_comp1'] = top1
+                 data_payload['df_comp2'] = top2
+                 data_payload['df_comp_intersect'] = intersect
+        
+            # 2. BUILD CONFIG
+            config = {
+                'title': report_title_val,
+                'inc_kec': inc_kec, 'inc_pusk': inc_pusk, 'inc_umum': inc_umum,
+                'inc_filter': inc_filter, 'filter_label': f"{f_entity} ({f_scope})" if f_entity else "",
+                'inc_compare': inc_compare, 'comp_names': (comp_p1, comp_p2) if inc_compare else None
+            }
+            
+            # 3. GENERATE PDF (Pass Theme)
+            try:
+                pdf_bytes = create_custom_pdf(config, data_payload, theme_name=pdf_theme)
+                st.success(f"PDF Berhasil Dibuat dengan Tema: {pdf_theme}!")
+                
+                st.download_button(
+                    label="⬇️ Download Custom PDF",
+                    data=bytes(pdf_bytes),
+                    file_name=f"Laporan_{pdf_theme.replace(' ', '_')}.pdf",
+                    mime="application/pdf",
+                    type="primary"
+                )
+            except Exception as e:
+                st.error(f"Gagal generate PDF: {e}")
 
 # ==============================================================================
 # 4. MAIN APP EXECUTION
@@ -464,7 +652,7 @@ def main():
     else:
         # Load & Process
         # OPTIMASI 3: Parallel Processing (Multi-threading)
-        import concurrent.futures
+
         
         with st.spinner(f'Memproses {len(uploaded_files)} file secara paralel... (Engine: Otomatis)'):
             all_dfs, all_logs = [], []
@@ -489,7 +677,7 @@ def main():
         if not master_df.empty:
             # Navigation
             st.sidebar.markdown("---")
-            mode = st.sidebar.radio("📌 Pilih Mode:", ["Dashboard Utama", "Filter Wilayah", "Komparasi"])
+            mode = st.sidebar.radio("📌 Pilih Mode:", ["Dashboard Utama", "Filter Wilayah", "Komparasi", "Laporan Custom"])
             
             if mode == "Dashboard Utama":
                 show_dashboard_recap(master_df, uploaded_files, all_logs)
@@ -497,6 +685,8 @@ def main():
                 show_regional_filter(master_df)
             elif mode == "Komparasi":
                 show_comparison(master_df)
+            elif mode == "Laporan Custom":
+                show_custom_report(master_df)
         else:
             # Case where files are uploaded but empty content
             st.error("Tidak ada data valid yang dapat diolah.")
