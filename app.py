@@ -382,7 +382,7 @@ def _render_download_section(df_view, top_kec, top_pusk, common_kec, uploaded_fi
                 st.download_button("Download ZIP", zbuf.getvalue(), "REKAP_CSV.zip", "application/zip", type="primary")
 
     # PDF Report Section
-    st.markdown("####Laporan PDF")
+    st.markdown("#### Laporan PDF")
     if st.button("Generate PDF Report"):
         with st.spinner("Membuat PDF..."):
             metrics = {
