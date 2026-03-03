@@ -174,7 +174,7 @@ def process_single_file_v2(file):
 
 def show_quality_report(log_data):
     """Menampilkan expander laporan kualitas data data."""
-    with st.expander("📝 Laporan Kualitas Data (Quality Check)", expanded=False):
+    with st.expander("Laporan Kualitas Data (Quality Check)", expanded=False):
         if log_data:
             df_log = pd.DataFrame(log_data)
             
@@ -224,7 +224,7 @@ def show_dashboard_recap(master_df, uploaded_files, log_data):
     with st.sidebar:
         st.markdown("---")
         with st.form(key='settings_form'):
-            st.header("⚙️ 2. Pengaturan & Filter")
+            st.header("2. Pengaturan & Filter")
             
             # Ranking Settings
             st.subheader("Ranking (Top N)")
@@ -302,22 +302,22 @@ def show_dashboard_recap(master_df, uploaded_files, log_data):
 
         # 4. TABS & VISUALIZATION
         t1, t2, t3, t4 = st.tabs([
-            f"🏢 Top {top_n_kec_val} Kecamatan", 
-            f"🏥 Top {top_n_pusk_val} Puskesmas", 
-            f"🦠 Top {top_n_common_val} Umum",
-            "📂 Data Mentah"
+            f"Top {top_n_kec_val} Kecamatan", 
+            f"Top {top_n_pusk_val} Puskesmas", 
+            f"Top {top_n_common_val} Umum",
+            "Data Mentah"
         ])
 
         with t1:
             st.subheader(f"Top {top_n_kec_val} Penyakit per Kecamatan")
-            with st.expander("📊 Lihat Grafik Visualisasi", expanded=True):
+            with st.expander("Lihat Grafik Visualisasi", expanded=True):
                 c_data = top_kec.groupby('Jenis Penyakit')['Total_Kasus'].sum().reset_index().sort_values('Total_Kasus', ascending=False).head(10)
                 st.altair_chart(make_bar_chart(c_data, "Global Kecamatan", title="Top 10 Global"), use_container_width=True)
             st.dataframe(style_zigzag_groups(top_kec, 'Kecamatan'), use_container_width=True, height=500)
 
         with t2:
             st.subheader(f"Top {top_n_pusk_val} Penyakit per Puskesmas")
-            with st.expander("📊 Lihat Grafik Visualisasi", expanded=True):
+            with st.expander("Lihat Grafik Visualisasi", expanded=True):
                 c_data = top_pusk.groupby('Jenis Penyakit')['Total_Kasus'].sum().reset_index().sort_values('Total_Kasus', ascending=False).head(10)
                 st.altair_chart(make_bar_chart(c_data, "Global Puskesmas", title="Top 10 Global"), use_container_width=True)
             st.dataframe(style_zigzag_groups(top_pusk, 'Puskesmas'), use_container_width=True, height=500)
@@ -346,7 +346,7 @@ def show_dashboard_recap(master_df, uploaded_files, log_data):
 def _render_download_section(df_view, top_kec, top_pusk, common_kec, uploaded_files, n_stats):
     """Helper internal bagian download."""
     st.markdown("---")
-    st.subheader("📥 Download Hasil")
+    st.subheader("Download Hasil")
     
     raw_opts = {
         "Data Mentah": df_view.drop(columns=['Label_Filter', 'Alpha_Filter'] if 'Label_Filter' in df_view else [], errors='ignore'),
@@ -369,20 +369,20 @@ def _render_download_section(df_view, top_kec, top_pusk, common_kec, uploaded_fi
                     sheet = k[:30].replace(" ", "_").upper()
                     clean_sheet = "".join(c for c in sheet if c.isalnum() or c=="_")
                     v.to_excel(writer, sheet_name=clean_sheet, index=False)
-            st.download_button("⬇️ Download Excel", buf.getvalue(), "REKAP_HASIL.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
+            st.download_button("Download Excel", buf.getvalue(), "REKAP_HASIL.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
         else:
             if len(final_data) == 1:
                 k = list(final_data.keys())[0]
-                st.download_button("⬇️ Download CSV", final_data[k].to_csv(index=False).encode(), f"{k}.csv", "text/csv", type="primary")
+                st.download_button("Download CSV", final_data[k].to_csv(index=False).encode(), f"{k}.csv", "text/csv", type="primary")
             else:
                 zbuf = BytesIO()
                 with zipfile.ZipFile(zbuf, "w") as zf:
                     for k, v in final_data.items():
                         zf.writestr(f"{k}.csv", v.to_csv(index=False))
-                st.download_button("⬇️ Download ZIP", zbuf.getvalue(), "REKAP_CSV.zip", "application/zip", type="primary")
+                st.download_button("Download ZIP", zbuf.getvalue(), "REKAP_CSV.zip", "application/zip", type="primary")
 
     # PDF Report Section
-    st.markdown("#### 📄 Laporan PDF")
+    st.markdown("####Laporan PDF")
     if st.button("Generate PDF Report"):
         with st.spinner("Membuat PDF..."):
             metrics = {
@@ -618,10 +618,10 @@ def main():
     
     # --- SIDEBAR INPUT ---
     with st.sidebar:
-        st.header("📂 1. Input Data")
+        st.header("1. Input Data")
         st.markdown("""
         <div class="sidebar-info">
-            <b>📋 Ketentuan File Excel:</b><br>
+            <b>Ketentuan File Excel:</b><br>
             1. Format wajib <b>.xlsx</b><br>
             2. Header data harus di <b>Baris ke-2</b><br>
             3. Data Penyakit ada di kolom <b>D - AY</b><br>
@@ -644,7 +644,7 @@ def main():
         st.empty()
         st.markdown("""
         <div style="text-align: center; padding: 50px; opacity: 0.7;">
-            <h3>👋 Selamat Datang!</h3>
+            <h3>Selamat Datang!</h3>
             <p>Silakan upload file Excel laporan puskesmas melalui panel di sebelah kiri.</p>
         </div>
         """, unsafe_allow_html=True)
@@ -677,7 +677,7 @@ def main():
         if not master_df.empty:
             # Navigation
             st.sidebar.markdown("---")
-            mode = st.sidebar.radio("📌 Pilih Mode:", ["Dashboard Utama", "Filter Wilayah", "Komparasi", "Laporan Custom"])
+            mode = st.sidebar.radio("Pilih Mode:", ["Dashboard Utama", "Filter Wilayah", "Komparasi", "Laporan Custom"])
             
             if mode == "Dashboard Utama":
                 show_dashboard_recap(master_df, uploaded_files, all_logs)
@@ -694,7 +694,7 @@ def main():
 
     # Reset
     st.markdown("---")
-    if st.button("🔄 Reset / Proses File Baru", type="secondary"):
+    if st.button("Reset / Proses File Baru", type="secondary"):
         reset_app()
         st.rerun()
     
